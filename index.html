@@ -1,0 +1,490 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Quiz de Ondulatória e Eletricidade (ENEM)</title>
+    <!-- Tailwind CSS CDN --><script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* Custom styles for a better look following UX/UI principles */
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #e0f2fe; /* Blue 50 - Fundo muito suave, quase branco */
+            display: flex;
+            justify-content: center;
+            align-items: flex-start; /* Alinha o card mais para o topo, não centraliza verticalmente */
+            min-height: 100vh;
+            padding: 2rem 1rem; /* Padding responsivo */
+        }
+        .quiz-card {
+            max-width: 700px;
+            width: 100%;
+            background-color: #ffffff; /* Branco puro para o card */
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1); /* Sombra mais suave */
+            border-radius: 12px; /* Cantos mais arredondados */
+            padding: 2.5rem; /* Mais padding interno */
+            border: 1px solid #e2e8f0; /* Borda sutil */
+        }
+        .option-button {
+            transition: all 0.2s ease-in-out;
+            border: 1px solid #d1d5db; /* Gray 300 - Borda sutil para opções */
+            color: #1f2937; /* Gray 800 */
+        }
+        .option-button:hover:not(.disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3); /* Sombra azul suave no hover */
+            background-color: #eff6ff; /* Blue 50 - Fundo mais claro no hover */
+            border-color: #93c5fd; /* Blue 300 */
+        }
+        /* Estilo para opção selecionada para confirmação */
+        .selected-for-confirmation {
+            background-color: #bfdbfe; /* Blue 200 */
+            border-color: #60a5fa; /* Blue 400 */
+            box-shadow: 0 0 0 3px #60a5fa; /* Anel azul para destaque */
+            color: #1f2937; /* Garante boa legibilidade */
+        }
+        /* Cor de acerto */
+        .correct {
+            background-color: #22c55e; /* Green 500 */
+            color: white;
+            border-color: #16a34a; /* Green 600 */
+            font-weight: 600; /* Semibold */
+        }
+        /* Cor de erro */
+        .incorrect {
+            background-color: #ef4444; /* Red 500 */
+            color: white;
+            border-color: #dc2626; /* Red 600 */
+            font-weight: 600; /* Semibold */
+        }
+        .feedback-message {
+            animation: fadeIn 0.5s;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        /* Estilos para o botão Próxima Questão */
+        #next-button {
+            background-color: #2563eb; /* Blue 600 */
+            color: white;
+            font-weight: bold;
+        }
+        #next-button:hover:not(:disabled) {
+            background-color: #1e40af; /* Blue 700 */
+        }
+        #next-button:disabled {
+            background-color: #93c5fd; /* Blue 300 */
+            cursor: not-allowed;
+        }
+        /* Estilos para a tela final */
+        #final-screen button {
+            background-color: #2563eb; /* Blue 600 */
+            color: white;
+            font-weight: bold;
+        }
+        #final-screen button:hover {
+            background-color: #1e40af; /* Blue 700 */
+        }
+    </style>
+</head>
+<body>
+
+    <div id="app" class="quiz-card p-6 md:p-10">
+        <h1 class="text-3xl font-extrabold text-center text-blue-700 mb-6 md:mb-8">Física ENEM: Ondulatória e Eletricidade</h1>
+
+        <!-- Score and Progress --><div class="flex justify-between items-center text-gray-600 mb-6 pb-4 border-b border-gray-200">
+            <span id="score-display" class="text-xl font-semibold">Acertos: 0</span>
+            <span id="progress-display" class="text-lg">Questão 1/10</span>
+        </div>
+
+        <!-- Quiz Area --><div id="quiz-area">
+            <!-- Question Text --><p id="question-text" class="text-2xl font-semibold text-gray-800 mb-8"></p>
+
+            <!-- Options Container --><div id="options-container" class="space-y-4 mb-8">
+                <!-- Buttons will be inserted here by JavaScript --></div>
+
+            <!-- Confirmation/Feedback Area --><div id="feedback-area" class="min-h-[100px] mb-6">
+                <!-- Confirmation prompt or final feedback will be inserted here --></div>
+
+            <!-- Next Button --><button id="next-button" onclick="nextQuestion()" class="w-full py-3 rounded-lg disabled:opacity-70 transition duration-150" disabled>
+                Próxima Questão
+            </button>
+        </div>
+
+        <!-- Final Screen Area --><div id="final-screen" class="text-center hidden">
+            <h2 class="text-4xl font-bold text-green-600 mb-4">Quiz Concluído!</h2>
+            <p id="final-score" class="text-3xl text-gray-800 mb-8"></p>
+            <button onclick="startQuiz()" class="w-full py-3 rounded-lg transition duration-150">
+                Reiniciar Quiz
+            </button>
+        </div>
+    </div>
+
+    <script>
+        const QUIZ_DATA = [
+            {
+                difficulty: "Fácil",
+                question: "Qual é a principal característica que diferencia uma onda mecânica de uma onda eletromagnética, como a luz?",
+                options: [
+                    { text: "A capacidade de sofrer o fenômeno da polarização.", isCorrect: false, rationale: "A polarização pode ocorrer em ondas mecânicas transversais (como em uma corda), mas a propagação no vácuo é a distinção crucial." },
+                    { text: "A velocidade de propagação ser sempre constante, independentemente do meio.", isCorrect: false, rationale: "A velocidade de ambos os tipos de onda depende do meio de propagação, alterando-se ao mudar de um para o outro (refração)." },
+                    { text: "A necessidade de um meio material para se propagar.", isCorrect: true, rationale: "As ondas mecânicas (som, ondas em cordas) requerem um meio material, enquanto as eletromagnéticas (luz, rádio) propagam-se no vácuo." },
+                    { text: "O fato de a onda eletromagnética ser sempre transversal.", isCorrect: false, rationale: "Embora a luz seja transversal, a característica fundamental que as diferencia é a necessidade de um meio para as ondas mecânicas." }
+                ],
+                videoLink: "https://youtu.be/btNvr8KAQyM?si=q3AYFpgnl7xWSqY2" // Exemplo
+            },
+            {
+                difficulty: "Fácil",
+                question: "Quando uma onda passa de um meio de propagação para outro (fenômeno da refração), qual propriedade ondulatória **necessariamente** se mantém constante?",
+                options: [
+                    { text: "Comprimento de onda ($\\lambda$).", isCorrect: false, rationale: "O comprimento de onda é alterado, pois a velocidade muda no novo meio e a frequência se mantém." },
+                    { text: "Velocidade de propagação ($v$).", isCorrect: false, rationale: "A mudança de meio causa, por definição, uma alteração na velocidade de propagação da onda." },
+                    { text: "Frequência ($f$).", isCorrect: true, rationale: "A frequência é determinada pela fonte que gerou a onda e, por isso, não se altera quando a onda muda de meio (refração)." },
+                    { text: "Amplitude ($A$).", isCorrect: false, rationale: "A amplitude geralmente muda, pois depende da energia que a onda consegue carregar através da interface entre os meios." }
+                ],
+                videoLink: "https://www.youtube.com/watch?v=12345b" // Exemplo
+            },
+            {
+                difficulty: "Fácil",
+                question: "Em condutores sólidos, como os fios de cobre de uma instalação elétrica, a corrente elétrica é essencialmente o movimento ordenado de quais partículas?",
+                options: [
+                    { text: "Prótons.", isCorrect: false, rationale: "Os prótons estão fixos no núcleo atômico e não se movem livremente em um condutor sólido." },
+                    { text: "Elétrons livres.", isCorrect: true, rationale: "Em metais, a corrente elétrica se deve ao movimento dos elétrons mais externos que estão fracamente ligados aos átomos e se movem livremente." },
+                    { text: "Nêutrons.", isCorrect: false, rationale: "Nêutrons não possuem carga elétrica e, portanto, não contribuem para a corrente elétrica." },
+                    { text: "Íons positivos e negativos.", isCorrect: false, rationale: "Em condutores sólidos, os íons estão fixos na rede cristalina, sendo o movimento dos elétrons o responsável pela corrente." }
+                ],
+                videoLink: "https://www.youtube.com/watch?v=12345c" // Exemplo
+            },
+            {
+                difficulty: "Fácil",
+                question: "Qual processo de eletrização permite eletrizar um corpo condutor inicialmente neutro **sem que haja contato** com o corpo eletrizado?",
+                options: [
+                    { text: "Atração.", isCorrect: false, rationale: "Atração é um efeito (polarização), não um processo de eletrização que resulte em carga permanente." },
+                    { text: "Atrito.", isCorrect: false, rationale: "O atrito exige o contato físico entre dois corpos." },
+                    { text: "Indução.", isCorrect: true, rationale: "A eletrização por indução utiliza a aproximação de um corpo carregado seguida de aterramento, sem a necessidade de contato." },
+                    { text: "Contato.", isCorrect: false, rationale: "A eletrização por contato exige o toque entre os corpos." }
+                ],
+                videoLink: "https://www.youtube.com/watch?v=12345d" // Exemplo
+            },
+            {
+                difficulty: "Fácil",
+                question: "Segundo a Primeira Lei de Ohm ($U = R \\cdot i$), o que representa conceitualmente a resistência elétrica ($R$) de um resistor em um circuito?",
+                options: [
+                    { text: "A energia potencial elétrica por unidade de carga (tensão).", isCorrect: false, rationale: "Essa é a definição de diferença de potencial elétrico, ou tensão ($U$)." },
+                    { text: "A oposição à passagem da corrente elétrica.", isCorrect: true, rationale: "A resistência é a medida da dificuldade que os elétrons encontram para se moverem através do material." },
+                    { text: "A quantidade de carga elétrica que atravessa a seção transversal do condutor por unidade de tempo (corrente).", isCorrect: false, rationale: "Essa é a definição de intensidade da corrente elétrica ($i$)." },
+                    { text: "A capacidade de um dispositivo de armazenar cargas elétricas.", isCorrect: false, rationale: "Essa é a função de um capacitor, não a definição de resistência." }
+                ],
+                videoLink: "https://www.youtube.com/watch?v=12345e" // Exemplo
+            },
+            {
+                difficulty: "Fácil",
+                question: "Qual é o nome do fenômeno físico que descreve a transformação da energia elétrica em energia térmica (calor) devido à passagem da corrente elétrica por um condutor?",
+                options: [
+                    { text: "Efeito Estufa.", isCorrect: false, rationale: "O Efeito Estufa é um fenômeno atmosférico, não relacionado à corrente elétrica em resistores." },
+                    { text: "Efeito Fotoelétrico.", isCorrect: false, rationale: "O Efeito Fotoelétrico é a emissão de elétrons por um material pela incidência de luz." },
+                    { text: "Efeito Joule.", isCorrect: true, rationale: "O Efeito Joule é a dissipação de energia elétrica na forma de calor (energia térmica), fundamental para aquecedores." },
+                    { text: "Efeito Doppler.", isCorrect: false, rationale: "O Efeito Doppler é um fenômeno ondulatório relacionado à alteração da frequência percebida." }
+                ],
+                videoLink: "https://www.youtube.com/watch?v=12345f" // Exemplo
+            },
+            {
+                difficulty: "Fácil",
+                question: "Em uma associação de resistores em série, qual grandeza elétrica é a mesma em todos os componentes (resistores, lâmpadas, etc.) do circuito?",
+                options: [
+                    { text: "A resistência elétrica ($R$).", isCorrect: false, rationale: "A resistência de cada componente em série pode ser diferente." },
+                    { text: "A intensidade da corrente elétrica ($i$).", isCorrect: true, rationale: "Em um circuito em série, a corrente elétrica não tem caminhos para se dividir e, portanto, é a mesma em todos os pontos." },
+                    { text: "A diferença de potencial elétrico ($U$).", isCorrect: false, rationale: "A tensão ($U$) é dividida entre os componentes em um circuito em série, exceto se eles tiverem a mesma resistência." },
+                    { text: "A potência elétrica dissipada ($P$).", isCorrect: false, rationale: "A potência dissipada é diferente em cada resistor, pois depende da sua resistência." }
+                ],
+                videoLink: "https://www.youtube.com/watch?v=12345g" // Exemplo
+            },
+            {
+                difficulty: "Média",
+                question: "Dentre os fenômenos ondulatórios clássicos (reflexão, refração, difração, interferência e polarização), qual deles é exclusivo das ondas transversais, como a luz visível?",
+                options: [
+                    { text: "Refração.", isCorrect: false, rationale: "A refração ocorre em todos os tipos de ondas (mecânicas e eletromagnéticas)." },
+                    { text: "Polarização.", isCorrect: true, rationale: "A polarização só pode ocorrer em ondas onde a vibração é perpendicular à direção de propagação, ou seja, em ondas transversais." },
+                    { text: "Difração.", isCorrect: false, rationale: "A difração, que é o contorno de obstáculos, ocorre com todos os tipos de onda." },
+                    { text: "Interferência.", isCorrect: false, rationale: "A interferência (soma de ondas) é um fenômeno comum a todas as ondas." }
+                ],
+                videoLink: "https://www.youtube.com/watch?v=12345h" // Exemplo
+            },
+            {
+                difficulty: "Média",
+                question: "O que é o fenômeno da ressonância em termos conceituais no contexto da Ondulatória?",
+                options: [
+                    { text: "O desvio de uma onda ao contornar obstáculos ou passar por aberturas.", isCorrect: false, rationale: "Essa descrição corresponde ao fenômeno da difração." },
+                    { text: "O aumento da amplitude de vibração de um corpo quando submetido a uma frequência externa igual à sua frequência natural de oscilação.", isCorrect: true, rationale: "A ressonância é a transferência eficiente de energia, resultando em um aumento acentuado da amplitude de vibração." },
+                    { text: "A mudança de direção de uma onda ao passar de um meio para outro com diferentes velocidades de propagação.", isCorrect: false, rationale: "Essa é a definição do fenômeno da refração." },
+                    { text: "O encontro de duas ou mais ondas, gerando um padrão de interferência.", isCorrect: false, rationale: "Essa é a definição de interferência (construtiva ou destrutiva)." }
+                ],
+                videoLink: "https://www.youtube.com/watch?v=12345i" // Exemplo
+            },
+            {
+                difficulty: "Difícil",
+                question: "O Efeito Doppler é a alteração na frequência percebida por um observador em virtude do movimento relativo entre a fonte emissora da onda e o observador. O que o Efeito Doppler indica quando um objeto astronômico se **afasta** da Terra?",
+                options: [
+                    { text: "Um aumento no comprimento de onda e um desvio para o azul (Blue Shift).", isCorrect: false, rationale: "O desvio para o azul indica que o objeto está se aproximando, e não se afastando." },
+                    { text: "Uma diminuição na frequência e um desvio para o vermelho (Red Shift).", isCorrect: true, rationale: "Quando a fonte se afasta, a frequência percebida diminui e o comprimento de onda aumenta, caracterizando o desvio para o vermelho (Red Shift)." },
+                    { text: "Um aumento na frequência percebida e uma diminuição na velocidade da onda.", isCorrect: false, rationale: "A velocidade da luz é constante no vácuo, e a frequência percebida diminui quando a fonte se afasta." },
+                    { text: "Nenhuma alteração na frequência, apenas na amplitude da onda.", isCorrect: false, rationale: "O Efeito Doppler é uma alteração perceptível na frequência da onda." }
+                ],
+                // Este link será incorporado
+                videoLink: "https://www.youtube.com/watch?v=Izy1sNmyunc" 
+            }
+        ];
+
+        let currentQuestionIndex = 0;
+        let score = 0;
+        let answered = false;
+
+        let preSelectedOption = null;
+        let preSelectedButton = null;
+
+        const questionTextElement = document.getElementById('question-text');
+        const optionsContainer = document.getElementById('options-container');
+        const feedbackArea = document.getElementById('feedback-area');
+        const nextButton = document.getElementById('next-button');
+        const scoreDisplay = document.getElementById('score-display');
+        const progressDisplay = document.getElementById('progress-display');
+        const quizArea = document.getElementById('quiz-area');
+        const finalScreen = document.getElementById('final-screen');
+        const finalScore = document.getElementById('final-score');
+
+        // Helper function to extract YouTube video ID and return embed URL
+        function getYouTubeEmbedUrl(url) {
+            if (!url) return null;
+            let videoId = '';
+            // Regex para extrair ID de URLs comuns (watch?v=, youtu.be/, etc.)
+            const watchMatch = url.match(/(?:\?v=|\/embed\/|\/v\/|youtu\.be\/|\/e\/|watch\?v%3D|&v%3D)([^#\&\?]*)/);
+            if (watchMatch && watchMatch[1].length === 11) {
+                videoId = watchMatch[1];
+            } else {
+                // Tenta tratar como ID puro (se for 11 caracteres)
+                if (url.length === 11) {
+                    videoId = url;
+                }
+            }
+            // Retorna o formato de embed padrão do YouTube
+            return videoId ? `https://www.youtube.com/embed/${videoId}?autoplay=0` : null;
+        }
+
+        // Function to start or restart the quiz
+        function startQuiz() {
+            currentQuestionIndex = 0;
+            score = 0;
+            answered = false;
+            quizArea.classList.remove('hidden');
+            finalScreen.classList.add('hidden');
+            renderQuestion();
+        }
+
+        // Function to shuffle array (Fisher-Yates) - for question options
+        function shuffleArray(array) {
+            for (let i = array.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [array[i], array[j]] = [array[j], array[i]];
+            }
+            return array;
+        }
+
+        // Function to render the current question
+        function renderQuestion() {
+            if (currentQuestionIndex >= QUIZ_DATA.length) {
+                showFinalScreen();
+                return;
+            }
+
+            answered = false;
+            feedbackArea.innerHTML = '';
+            nextButton.disabled = true;
+
+            const currentQuestion = QUIZ_DATA[currentQuestionIndex];
+
+            // Update displays
+            scoreDisplay.textContent = `Acertos: ${score}`;
+            progressDisplay.textContent = `Questão ${currentQuestionIndex + 1}/${QUIZ_DATA.length} (Dificuldade: ${currentQuestion.difficulty})`;
+            
+            // Render question and options
+            questionTextElement.innerHTML = currentQuestion.question; // Use innerHTML to parse LaTeX
+            optionsContainer.innerHTML = '';
+
+            // Shuffle options for better randomization
+            const shuffledOptions = shuffleArray([...currentQuestion.options]);
+
+            shuffledOptions.forEach((option) => {
+                const button = document.createElement('button');
+                button.innerHTML = option.text; // Use innerHTML to parse LaTeX
+                button.className = 'option-button w-full text-left p-4 rounded-lg bg-gray-100 hover:bg-gray-200 focus:outline-none';
+                
+                // CHAMA A FUNÇÃO DE PRÉ-SELEÇÃO
+                button.onclick = () => prepareConfirmation(button, option);
+                optionsContainer.appendChild(button);
+            });
+        }
+
+        // Function to prepare the confirmation prompt
+        function prepareConfirmation(selectedButton, selectedOption) {
+            if (answered) return;
+
+            // Armazena a seleção temporariamente
+            preSelectedOption = selectedOption;
+            preSelectedButton = selectedButton;
+
+            // Desabilita as outras opções e destaca a escolhida (visualmente, mas ainda não confirmada)
+            const optionButtons = document.querySelectorAll('.option-button');
+            optionButtons.forEach(btn => {
+                btn.classList.add('disabled', 'opacity-70'); // Reduz opacidade e desabilita cliques
+                btn.disabled = true;
+                btn.classList.remove('selected-for-confirmation'); // Remove destaque anterior
+            });
+            
+            selectedButton.classList.remove('opacity-70');
+            selectedButton.classList.add('selected-for-confirmation'); // Novo destaque visual
+
+
+            // Exibe a área de confirmação
+            feedbackArea.innerHTML = `
+                <div class="feedback-message p-4 rounded-lg bg-blue-100 border border-blue-300 mb-4 text-gray-800">
+                    <p class="font-bold mb-3 text-lg">Você tem certeza desta resposta?</p>
+                    <button onclick="confirmSelection()" class="bg-green-500 hover:bg-green-600 text-white font-bold py-2 px-4 rounded-lg mr-3 transition duration-150">
+                        Sim, confirmar
+                    </button>
+                    <button onclick="cancelSelection()" class="bg-red-500 hover:bg-red-600 text-white font-bold py-2 px-4 rounded-lg transition duration-150">
+                        Não, voltar
+                    </button>
+                </div>
+            `;
+        }
+
+        // Function to cancel the confirmation and allow re-selection
+        function cancelSelection() {
+            // Limpa a área de feedback
+            feedbackArea.innerHTML = '';
+            
+            // Reabilita todos os botões e remove o destaque
+            const optionButtons = document.querySelectorAll('.option-button');
+            optionButtons.forEach(btn => {
+                btn.classList.remove('disabled', 'opacity-70', 'selected-for-confirmation');
+                btn.disabled = false;
+            });
+
+            // Limpa o estado temporário
+            preSelectedOption = null;
+            preSelectedButton = null;
+        }
+
+        // Function to handle option selection and feedback after confirmation
+        function confirmSelection() {
+            if (answered || !preSelectedOption || !preSelectedButton) return;
+
+            const selectedOption = preSelectedOption;
+            const selectedButton = preSelectedButton;
+            const allOptions = QUIZ_DATA[currentQuestionIndex].options;
+
+            answered = true;
+            nextButton.disabled = false;
+            
+            // Remove a área de confirmação
+            feedbackArea.innerHTML = ''; 
+
+            // Desabilitar/Estilizar todos os botões de opção permanentemente
+            const optionButtons = document.querySelectorAll('.option-button');
+            optionButtons.forEach(btn => {
+                btn.classList.add('disabled', 'cursor-default', 'opacity-70');
+                btn.disabled = true;
+                btn.classList.remove('selected-for-confirmation'); // Garante que o destaque de seleção seja removido
+            });
+
+            if (selectedOption.isCorrect) {
+                score++;
+                selectedButton.classList.remove('bg-gray-100', 'hover:bg-gray-200', 'opacity-70');
+                selectedButton.classList.add('correct');
+                showFinalFeedback(true, selectedOption.rationale);
+            } else {
+                selectedButton.classList.remove('bg-gray-100', 'hover:bg-gray-200', 'opacity-70');
+                selectedButton.classList.add('incorrect');
+                
+                // Find and highlight the correct answer
+                const correctOption = allOptions.find(opt => opt.isCorrect);
+                
+                // Percorre todos os botões para encontrar o correto e destacá-lo
+                optionButtons.forEach(btn => {
+                    if (btn.innerHTML === correctOption.text) {
+                        btn.classList.remove('bg-gray-100', 'hover:bg-gray-200', 'opacity-70');
+                        // Destaca o correto com uma borda forte
+                        btn.classList.add('correct', 'border-2', 'border-green-700'); 
+                    }
+                });
+                showFinalFeedback(false, correctOption.rationale);
+            }
+            scoreDisplay.textContent = `Acertos: ${score}`;
+
+            // Limpa o estado temporário para evitar cliques acidentais
+            preSelectedOption = null;
+            preSelectedButton = null;
+        }
+
+        // Function to display final feedback message
+        function showFinalFeedback(isCorrect, rationale) {
+            let message = '';
+            let colorClass = ''; 
+            
+            let videoEmbedHtml = '';
+            const currentQuestion = QUIZ_DATA[currentQuestionIndex];
+            const embedUrl = getYouTubeEmbedUrl(currentQuestion.videoLink);
+
+            if (embedUrl) {
+                videoEmbedHtml = `
+                    <p class="mt-4 text-sm font-semibold text-gray-700">Explicação em Vídeo:</p>
+                    <div class="video-container mt-2 w-full bg-black rounded-lg" style="position: relative; padding-bottom: 56.25%; /* 16:9 aspect ratio */ height: 0; overflow: hidden;">
+                        <iframe 
+                            src="${embedUrl}" 
+                            frameborder="0" 
+                            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" 
+                            allowfullscreen 
+                            class="absolute top-0 left-0 w-full h-full rounded-lg"
+                            title="Explicação da Questão ${currentQuestionIndex + 1}"
+                        ></iframe>
+                    </div>
+                `;
+            }
+
+
+            if (isCorrect) {
+                message = `<span class="font-bold">🎉 Correto!</span>`;
+                colorClass = 'text-green-600';
+            } else {
+                message = `<span class="font-bold">❌ Errado.</span> A alternativa correta está destacada em verde.`;
+                colorClass = 'text-red-600';
+            }
+
+            feedbackArea.innerHTML = `
+                <div class="feedback-message p-3 rounded-lg ${colorClass} bg-gray-50 border border-gray-200 mb-4 flex flex-col items-start">
+                    ${message}
+                    <p class="mt-2 text-sm text-gray-700">${rationale}</p>
+                    ${videoEmbedHtml} 
+                </div>
+            `;
+        }
+
+        // Function to go to the next question
+        function nextQuestion() {
+            currentQuestionIndex++;
+            renderQuestion();
+        }
+
+        // Function to show the final score screen
+        function showFinalScreen() {
+            quizArea.classList.add('hidden');
+            finalScreen.classList.remove('hidden');
+            finalScore.innerHTML = `Sua pontuação final é: <span class="text-blue-600 font-extrabold text-4xl">${score} / ${QUIZ_DATA.length}</span>`;
+        }
+
+        // Initialize the quiz when the window loads
+        window.onload = startQuiz;
+    </script>
+</body>
+</html>
