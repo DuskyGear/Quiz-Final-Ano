@@ -41,21 +41,27 @@
             background-color: #eff6ff; /* Blue 50 - Fundo mais claro no hover */
             border-color: #93c5fd; /* Blue 300 */
         }
-        /* Estilo para opção selecionada para confirmação */
+        /* Estilo para opção selecionada antes da confirmação */
         .selected-for-confirmation {
             background-color: #bfdbfe; /* Blue 200 */
             border-color: #60a5fa; /* Blue 400 */
             box-shadow: 0 0 0 3px #60a5fa; /* Anel azul para destaque */
             color: #1f2937; /* Garante boa legibilidade */
         }
-        /* Cor de acerto */
+        /* Estilo para a opção que o usuário escolheu (após confirmação, neutra no modo quiz) */
+        .user-answered {
+            background-color: #93c5fd; /* Blue 300 */
+            color: white;
+            font-weight: 600;
+        }
+        /* Cor de acerto (usada apenas no modo Revisão) */
         .correct {
             background-color: #22c55e; /* Green 500 */
             color: white;
             border-color: #16a34a; /* Green 600 */
             font-weight: 600; /* Semibold */
         }
-        /* Cor de erro */
+        /* Cor de erro (usada apenas no modo Revisão) */
         .incorrect {
             background-color: #ef4444; /* Red 500 */
             color: white;
@@ -82,14 +88,14 @@
             background-color: #93c5fd; /* Blue 300 */
             cursor: not-allowed;
         }
-        /* Estilos para a tela final */
-        #final-screen button {
-            background-color: #2563eb; /* Blue 600 */
+        /* Estilos para a tela final (botões de Revisão) */
+        .review-button {
+            background-color: #10b981; /* Emerald 500 */
             color: white;
             font-weight: bold;
         }
-        #final-screen button:hover {
-            background-color: #1e40af; /* Blue 700 */
+        .review-button:hover {
+            background-color: #059669; /* Emerald 600 */
         }
     </style>
 </head>
@@ -98,8 +104,8 @@
     <div id="app" class="quiz-card">
         <h1 class="text-2xl sm:text-3xl font-extrabold text-center text-blue-700 mb-4 md:mb-8">Física ENEM: Ondulatória e Eletricidade</h1>
 
-        <!-- Score and Progress --><div class="flex justify-between items-center text-gray-600 mb-4 pb-3 border-b border-gray-200">
-            <span id="score-display" class="text-lg sm:text-xl font-semibold">Acertos: 0</span>
+        <!-- Score and Progress --><div class="flex justify-end items-center text-gray-600 mb-4 pb-3 border-b border-gray-200">
+            <!-- Score display removed from here -->
             <span id="progress-display" class="text-md sm:text-lg">Questão 1/10</span>
         </div>
 
@@ -118,10 +124,10 @@
         </div>
 
         <!-- Final Screen Area --><div id="final-screen" class="text-center hidden">
-            <h2 class="text-3xl sm:text-4xl font-bold text-green-600 mb-4">Quiz Concluído!</h2>
+            <h2 class="text-3xl sm:text-4xl font-bold text-blue-700 mb-4">Quiz Concluído!</h2>
             <p id="final-score" class="text-xl sm:text-3xl text-gray-800 mb-8"></p>
-            <button onclick="startQuiz()" class="w-full py-3 rounded-lg transition duration-150">
-                Reiniciar Quiz
+            <button onclick="startReview()" class="review-button w-full py-3 rounded-lg transition duration-150">
+                Revisar Questões
             </button>
         </div>
     </div>
@@ -241,17 +247,16 @@
         ];
 
         let currentQuestionIndex = 0;
-        let score = 0;
         let answered = false;
-
         let preSelectedOption = null;
         let preSelectedButton = null;
+        let USER_ANSWERS = []; // Stores {userOptionIndex: number, isCorrect: boolean}
+        let isReviewMode = false;
 
         const questionTextElement = document.getElementById('question-text');
         const optionsContainer = document.getElementById('options-container');
         const feedbackArea = document.getElementById('feedback-area');
         const nextButton = document.getElementById('next-button');
-        const scoreDisplay = document.getElementById('score-display');
         const progressDisplay = document.getElementById('progress-display');
         const quizArea = document.getElementById('quiz-area');
         const finalScreen = document.getElementById('final-screen');
@@ -266,20 +271,29 @@
             if (watchMatch && watchMatch[1].length === 11) {
                 videoId = watchMatch[1];
             } else {
-                // Tenta tratar como ID puro (se for 11 caracteres)
                 if (url.length === 11) {
                     videoId = url;
                 }
             }
-            // Retorna o formato de embed padrão do YouTube
             return videoId ? `https://www.youtube.com/embed/${videoId}?autoplay=0` : null;
         }
 
-        // Function to start or restart the quiz
+        // Function to start the quiz (only runs once on load)
         function startQuiz() {
             currentQuestionIndex = 0;
-            score = 0;
-            answered = false;
+            USER_ANSWERS = []; // Clear previous answers
+            isReviewMode = false;
+            quizArea.classList.remove('hidden');
+            finalScreen.classList.add('hidden');
+            // Reset next button text for quiz mode
+            nextButton.textContent = 'Próxima Questão';
+            renderQuestion();
+        }
+
+        // Function to start the review mode
+        function startReview() {
+            currentQuestionIndex = 0;
+            isReviewMode = true;
             quizArea.classList.remove('hidden');
             finalScreen.classList.add('hidden');
             renderQuestion();
@@ -294,10 +308,14 @@
             return array;
         }
 
-        // Function to render the current question
+        // Function to render the current question (used for both quiz and review)
         function renderQuestion() {
             if (currentQuestionIndex >= QUIZ_DATA.length) {
-                showFinalScreen();
+                if (isReviewMode) {
+                    showFinalReviewScreen();
+                } else {
+                    showFinalScreen();
+                }
                 return;
             }
 
@@ -306,47 +324,112 @@
             nextButton.disabled = true;
 
             const currentQuestion = QUIZ_DATA[currentQuestionIndex];
+            
+            // Re-shuffle options only if not in review mode and not already shuffled
+            if (!isReviewMode && !currentQuestion.shuffledOptions) {
+                 currentQuestion.shuffledOptions = shuffleArray([...currentQuestion.options].map((opt, index) => ({...opt, originalIndex: index})));
+            }
+            const optionsToRender = currentQuestion.shuffledOptions || currentQuestion.options;
 
             // Update displays
-            scoreDisplay.textContent = `Acertos: ${score}`;
-            progressDisplay.textContent = `Questão ${currentQuestionIndex + 1}/${QUIZ_DATA.length} (Dificuldade: ${currentQuestion.difficulty})`;
-            
+            if (isReviewMode) {
+                progressDisplay.textContent = `Revisão: ${currentQuestionIndex + 1}/${QUIZ_DATA.length}`;
+            } else {
+                progressDisplay.textContent = `Questão ${currentQuestionIndex + 1}/${QUIZ_DATA.length} (Dificuldade: ${currentQuestion.difficulty})`;
+            }
+
             // Render question and options
             questionTextElement.innerHTML = currentQuestion.question; 
             optionsContainer.innerHTML = '';
 
-            // Shuffle options for better randomization
-            const shuffledOptions = shuffleArray([...currentQuestion.options]);
-
-            shuffledOptions.forEach((option) => {
+            optionsToRender.forEach((option, index) => {
                 const button = document.createElement('button');
                 button.innerHTML = option.text; 
-                button.className = 'option-button w-full text-left p-4 rounded-lg bg-gray-100 hover:bg-gray-200 focus:outline-none';
+                button.className = 'option-button w-full text-left p-4 rounded-lg bg-gray-100 focus:outline-none';
                 
-                // CHAMA A FUNÇÃO DE PRÉ-SELEÇÃO
-                button.onclick = () => prepareConfirmation(button, option);
+                if (isReviewMode) {
+                    // Disable all buttons in review mode
+                    button.disabled = true;
+                    button.classList.add('disabled', 'cursor-default');
+
+                    const reviewData = USER_ANSWERS[currentQuestionIndex];
+                    const userOptionIndex = optionsToRender[index].originalIndex;
+                    
+                    // Highlight correct answer in green
+                    if (option.isCorrect) {
+                        button.classList.add('correct', 'border-2', 'border-green-700');
+                        button.classList.remove('bg-gray-100');
+                    } 
+                    
+                    // Highlight user's selected answer (if they answered this one)
+                    if (userOptionIndex === reviewData.userOptionIndex) {
+                        // User's incorrect answer is marked red
+                        if (!option.isCorrect) {
+                            button.classList.add('incorrect', 'border-2', 'border-red-700');
+                        }
+                        button.classList.remove('bg-gray-100');
+                    }
+                    
+                    // Display final feedback immediately in review mode
+                    showReviewFeedback(currentQuestion);
+                    nextButton.disabled = false;
+                    nextButton.textContent = currentQuestionIndex === QUIZ_DATA.length - 1 ? 'Voltar para o Início' : 'Próxima Questão de Revisão';
+
+                } else {
+                    // Quiz Mode logic
+                    // If question already answered (after coming back from next/prev), keep it marked
+                    if (USER_ANSWERS[currentQuestionIndex]) {
+                         const userAns = USER_ANSWERS[currentQuestionIndex];
+                         if (optionsToRender[index].originalIndex === userAns.userOptionIndex) {
+                             button.classList.add('user-answered', 'disabled', 'cursor-default');
+                             nextButton.disabled = false;
+                             showSimpleAnsweredFeedback();
+                         } else {
+                             button.classList.add('disabled', 'opacity-50', 'cursor-default');
+                         }
+                         button.disabled = true;
+                    } else {
+                         // Default interactive state
+                         button.classList.add('hover:bg-gray-200');
+                         button.onclick = () => prepareConfirmation(button, option, optionsToRender[index].originalIndex);
+                    }
+                }
+
                 optionsContainer.appendChild(button);
             });
+            
+             // Re-enable next button if in review mode
+            if (isReviewMode || USER_ANSWERS[currentQuestionIndex]) {
+                 nextButton.disabled = false;
+            }
+        }
+        
+        // Show simple confirmation feedback when viewing a previously answered question
+        function showSimpleAnsweredFeedback() {
+             feedbackArea.innerHTML = `
+                <div class="feedback-message p-3 rounded-lg text-blue-700 bg-blue-100 border border-blue-300 mb-4 font-semibold">
+                    Resposta registrada. Clique em 'Próxima Questão' para continuar.
+                </div>
+            `;
         }
 
         // Function to prepare the confirmation prompt
-        function prepareConfirmation(selectedButton, selectedOption) {
-            if (answered) return;
+        function prepareConfirmation(selectedButton, selectedOption, selectedIndex) {
+            if (USER_ANSWERS[currentQuestionIndex] || answered) return;
 
-            // Armazena a seleção temporariamente
             preSelectedOption = selectedOption;
             preSelectedButton = selectedButton;
+            preSelectedButton.originalIndex = selectedIndex; // Store original index
 
-            // Desabilita as outras opções e destaca a escolhida (visualmente, mas ainda não confirmada)
             const optionButtons = document.querySelectorAll('.option-button');
             optionButtons.forEach(btn => {
-                btn.classList.add('disabled', 'opacity-70'); // Reduz opacidade e desabilita cliques
+                btn.classList.add('disabled', 'opacity-70'); 
                 btn.disabled = true;
-                btn.classList.remove('selected-for-confirmation'); // Remove destaque anterior
+                btn.classList.remove('selected-for-confirmation'); 
             });
             
             selectedButton.classList.remove('opacity-70');
-            selectedButton.classList.add('selected-for-confirmation'); // Novo destaque visual
+            selectedButton.classList.add('selected-for-confirmation');
 
 
             // Exibe a área de confirmação
@@ -365,85 +448,67 @@
 
         // Function to cancel the confirmation and allow re-selection
         function cancelSelection() {
-            // Limpa a área de feedback
             feedbackArea.innerHTML = '';
             
-            // Reabilita todos os botões e remove o destaque
             const optionButtons = document.querySelectorAll('.option-button');
             optionButtons.forEach(btn => {
                 btn.classList.remove('disabled', 'opacity-70', 'selected-for-confirmation');
                 btn.disabled = false;
             });
 
-            // Limpa o estado temporário
             preSelectedOption = null;
             preSelectedButton = null;
         }
 
-        // Function to handle option selection and feedback after confirmation
+        // Function to handle option selection and record result (NO IMMEDIATE FEEDBACK)
         function confirmSelection() {
-            if (answered || !preSelectedOption || !preSelectedButton) return;
+            if (USER_ANSWERS[currentQuestionIndex] || answered || !preSelectedOption || !preSelectedButton) return;
 
-            const selectedOption = preSelectedOption;
-            const selectedButton = preSelectedButton;
-            const allOptions = QUIZ_DATA[currentQuestionIndex].options;
+            const isCorrect = preSelectedOption.isCorrect;
+            const selectedIndex = preSelectedButton.originalIndex;
+
+            // 1. Record the answer or update existing answer
+            USER_ANSWERS[currentQuestionIndex] = { 
+                userOptionIndex: selectedIndex, 
+                isCorrect: isCorrect 
+            };
 
             answered = true;
             nextButton.disabled = false;
             
-            // Remove a área de confirmação
             feedbackArea.innerHTML = ''; 
 
-            // Desabilitar/Estilizar todos os botões de opção permanentemente
+            // 2. Visually mark the answered option neutrally
             const optionButtons = document.querySelectorAll('.option-button');
             optionButtons.forEach(btn => {
-                btn.classList.add('disabled', 'cursor-default', 'opacity-70');
                 btn.disabled = true;
-                btn.classList.remove('selected-for-confirmation'); // Garante que o destaque de seleção seja removido
+                btn.classList.add('disabled', 'cursor-default', 'opacity-50');
+                btn.classList.remove('selected-for-confirmation');
             });
+            
+            preSelectedButton.classList.remove('opacity-50');
+            preSelectedButton.classList.add('user-answered');
 
-            if (selectedOption.isCorrect) {
-                score++;
-                selectedButton.classList.remove('bg-gray-100', 'hover:bg-gray-200', 'opacity-70');
-                selectedButton.classList.add('correct');
-                showFinalFeedback(true, selectedOption.rationale);
-            } else {
-                selectedButton.classList.remove('bg-gray-100', 'hover:bg-gray-200', 'opacity-70');
-                selectedButton.classList.add('incorrect');
-                
-                // Find and highlight the correct answer
-                const correctOption = allOptions.find(opt => opt.isCorrect);
-                
-                // Percorre todos os botões para encontrar o correto e destacá-lo
-                optionButtons.forEach(btn => {
-                    if (btn.innerHTML === correctOption.text) {
-                        btn.classList.remove('bg-gray-100', 'hover:bg-gray-200', 'opacity-70');
-                        // Destaca o correto com uma borda forte
-                        btn.classList.add('correct', 'border-2', 'border-green-700'); 
-                    }
-                });
-                showFinalFeedback(false, correctOption.rationale);
-            }
-            scoreDisplay.textContent = `Acertos: ${score}`;
+            // 3. Show simple confirmation message
+            showSimpleAnsweredFeedback();
 
-            // Limpa o estado temporário para evitar cliques acidentais
             preSelectedOption = null;
             preSelectedButton = null;
         }
 
-        // Function to display final feedback message
-        function showFinalFeedback(isCorrect, rationale) {
+        // Function to display detailed feedback during review mode
+        function showReviewFeedback(question) {
+            let userChoiceData = USER_ANSWERS[currentQuestionIndex];
             let message = '';
             let colorClass = ''; 
             
             let videoEmbedHtml = '';
-            const currentQuestion = QUIZ_DATA[currentQuestionIndex];
-            const embedUrl = getYouTubeEmbedUrl(currentQuestion.videoLink);
+            const embedUrl = getYouTubeEmbedUrl(question.videoLink);
 
             if (embedUrl) {
                 videoEmbedHtml = `
                     <p class="mt-4 text-sm font-semibold text-gray-700">Explicação em Vídeo:</p>
-                    <div class="video-container mt-2 w-full bg-black rounded-lg" style="position: relative; padding-bottom: 56.25%; /* 16:9 aspect ratio */ height: 0; overflow: hidden;">
+                    <div class="video-container mt-2 w-full bg-black rounded-lg" style="position: relative; padding-bottom: 56.25%; height: 0; overflow: hidden;">
                         <iframe 
                             src="${embedUrl}" 
                             frameborder="0" 
@@ -456,35 +521,61 @@
                 `;
             }
 
-
-            if (isCorrect) {
-                message = `<span class="font-bold">🎉 Correto!</span>`;
+            if (userChoiceData.isCorrect) {
+                message = `<span class="font-bold">✅ Você Acertou!</span>`;
                 colorClass = 'text-green-600';
             } else {
-                message = `<span class="font-bold">❌ Errado.</span> A alternativa correta está destacada em verde.`;
+                message = `<span class="font-bold">❌ Você Errou!</span> A resposta correta está destacada em verde.`;
                 colorClass = 'text-red-600';
             }
 
             feedbackArea.innerHTML = `
                 <div class="feedback-message p-3 rounded-lg ${colorClass} bg-gray-50 border border-gray-200 mb-4 flex flex-col items-start">
                     ${message}
-                    <p class="mt-2 text-sm text-gray-700">${rationale}</p>
+                    <p class="mt-2 text-sm text-gray-700">**Justificativa:** ${question.options.find(opt => opt.isCorrect).rationale}</p>
                     ${videoEmbedHtml} 
                 </div>
             `;
         }
 
-        // Function to go to the next question
+
+        // Function to handle navigation
         function nextQuestion() {
-            currentQuestionIndex++;
-            renderQuestion();
+            if (isReviewMode && currentQuestionIndex === QUIZ_DATA.length - 1) {
+                // If on the last question in review mode, go to the final review screen
+                showFinalReviewScreen();
+            } else {
+                currentQuestionIndex++;
+                renderQuestion();
+            }
         }
 
-        // Function to show the final score screen
+        // --- Final Screens ---
+
         function showFinalScreen() {
             quizArea.classList.add('hidden');
             finalScreen.classList.remove('hidden');
-            finalScore.innerHTML = `Sua pontuação final é: <span class="text-blue-600 font-extrabold text-4xl">${score} / ${QUIZ_DATA.length}</span>`;
+            
+            // Calculate final score
+            const finalScoreCount = USER_ANSWERS.filter(a => a.isCorrect).length;
+            
+            finalScore.innerHTML = `Você acertou: <span class="text-green-600 font-extrabold text-4xl">${finalScoreCount} / ${QUIZ_DATA.length}</span> questões.`;
+        }
+        
+        function showFinalReviewScreen() {
+             quizArea.classList.add('hidden');
+             finalScreen.classList.remove('hidden');
+             const finalScoreCount = USER_ANSWERS.filter(a => a.isCorrect).length;
+
+             finalScore.innerHTML = `
+                 Revisão Concluída!
+                 <p class="text-xl sm:text-3xl mt-4">Pontuação: <span class="text-blue-600 font-extrabold text-4xl">${finalScoreCount} / ${QUIZ_DATA.length}</span></p>
+             `;
+             // The only available action is to review again.
+             document.querySelector('#final-screen button').textContent = "Revisar Novamente";
+             // Since the user explicitly forbids restarting, we will not call startQuiz() here. 
+             // We will call startReview() again to allow repeated review sessions.
+             document.querySelector('#final-screen button').onclick = startReview;
         }
 
         // Initialize the quiz when the window loads
